@@ -8305,6 +8305,36 @@ Momentum GD final loss: 18.6766
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="Homework-3-Reflection-Answers">Homework 3 Reflection Answers<a class="anchor-link" href="#Homework-3-Reflection-Answers">¶</a></h3><ul>
+<li><p><strong>What is the interpretation of the slope m?</strong> For the full Auto MPG model, <code>m ≈ -4.1255</code>, so for every +1000 lbs increase in vehicle weight, predicted MPG <em>decreases</em> by about <code>4.13 MPG</code>.</p>
+</li>
+<li><p><strong>Does the relationship make sense? Why or why not?</strong> Yes. Heavier vehicles generally need more energy to accelerate and maintain speed, so they usually get lower fuel economy.</p>
+</li>
+<li><p><strong>If a vehicle weighs 3000 lbs (x = 3.0), what MPG does your model predict?</strong> The model predicts <code>22.5832 MPG</code>.</p>
+</li>
+<li><p><strong>Did you need to adjust the learning rate from what worked on the small dataset? Why or why not?</strong> No—<code>α = 0.01</code> was kept for both datasets. The full-dataset loss decreases smoothly (monotonic for standard GD), so it is stable, though convergence is slower than on the small dataset.</p>
+</li>
+<li><p><strong>Which method converged faster (reached lower loss in fewer iterations)?</strong> Gradient descent with momentum converged faster and reached much lower loss earlier.</p>
+</li>
+<li><p><strong>Is the convergence of the momentum method smoother or more oscillatory?</strong> It is faster but mildly more oscillatory near the minimum, while standard GD is smoother and steadily decreasing.</p>
+</li>
+<li><p><strong>What final loss does each method achieve?</strong> Standard GD: <code>28.2222</code>. Momentum GD: <code>18.6766</code>.</p>
+</li>
+<li><p><strong>Does the loss decrease consistently?</strong> For standard GD, yes (consistently decreasing). For momentum GD, it mostly decreases but has small oscillations.</p>
+</li>
+<li><p><strong>At approximately what iteration does the loss appear to stabilize?</strong> The standard GD curve flattens late (roughly around iterations <code>800–1000</code>), while momentum becomes nearly flat much earlier (roughly around <code>200–300</code>).</p>
+</li>
+<li><p><strong>Why does the curve flatten out rather than reaching zero?</strong> Real-world MPG data has noise and unmodeled factors (engine, aerodynamics, driving conditions, etc.), and a single straight line cannot perfectly fit all points. Therefore the minimum MSE is above zero.</p>
+</li>
+<li><p><strong>How well does the line fit the data for the small dataset?</strong> It fits reasonably well and captures the clear linear trend in the small synthetic points.</p>
+</li>
+<li><p><strong>For the full dataset, describe the scatter around the line. Is it uniform or does it vary?</strong> Scatter varies by weight range (heteroscedastic-like behavior): lighter vehicles show wider spread, while heavier vehicles are generally tighter around the line.</p>
+</li>
+<li><p><strong>Looking at the full dataset plot, are there any outliers (points far from the line)?</strong> Yes, there are several noticeable outliers (especially some light vehicles with much higher MPG than predicted).</p>
+</li>
+<li><p><strong>Do you think a linear model is appropriate for this data? Why or why not?</strong> A linear model is a good first baseline because it captures the main negative trend between weight and MPG, but it is not fully sufficient for best accuracy; nonlinear effects and additional features would improve fit.</p>
+</li>
+</ul>
 </div>
 </div>
 </div>

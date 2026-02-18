@@ -8118,10 +8118,10 @@ a.anchor-link {
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h3 id="Problem-3.2:-Reflection-Questions">Problem 3.2: Reflection Questions<a class="anchor-link" href="#Problem-3.2:-Reflection-Questions">¶</a></h3><ul>
 <li><p><strong>When might iterative methods be necessary?</strong>
-When a closed-form derivative solution is unavailable, too expensive to compute, or the objective is high-dimensional/non-convex (common in machine learning). Iterative methods scale to large datasets and models.</p>
+Iterative methods are necessary when a closed-form solution is unavailable or impractical, such as with high-dimensional models, non-linear objectives, or very large datasets. They are especially common in machine learning because they can progressively improve parameters even when exact optimization is computationally infeasible.</p>
 </li>
 <li><p><strong>What role does the learning rate play?</strong>
-too small means slow convergence, too large causes oscillation or divergence.</p>
+The learning rate controls step size in each update. If it is too small, convergence is slow; if it is too large, updates can overshoot the minimum and cause oscillation or divergence. A well-chosen learning rate balances speed and stability.</p>
 </li>
 </ul>
 </div>
