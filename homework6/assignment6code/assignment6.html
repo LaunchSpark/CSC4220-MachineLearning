@@ -1,0 +1,628 @@
+<h1>Machine Learning Assignment 6: Ensemble Methods - Bagging</h1>
+<h2>Context and Motivation</h2>
+<h3>The Problem of Model Uncertainty</h3>
+<p>In Assignment 5, we saw that regularization helps control overfitting by reducing model capacity. But there's a deeper issue: any single model has inherent uncertainty. Even with perfect cross-validation, your chosen model might simply be "unlucky" - it might learn noise patterns that happen to look like signal in your specific dataset, or miss signal patterns that are hard to detect.</p>
+<h3>Why This Matters</h3>
+<p>In production machine learning with moderate datasets (hundreds to thousands of samples):</p>
+<ul>
+<li>Both overfitting and underfitting are real risks.</li>
+<li>Any single model selection carries uncertainty.</li>
+<li>We need strategies to hedge against poor model choices.</li>
+</ul>
+<h3>The Ensemble Solution</h3>
+<p>Instead of putting all our trust in one model, we can use Bagging:</p>
+<p>Train multiple models and average them to cancel out the noise each individual model learns. This approach hedges against the risk of poor model selection by combining multiple models' perspectives.</p>
+<h3>Learning Objectives</h3>
+<p>By the end of this assignment, you will be able to:</p>
+<ul>
+<li>Understand that trained models contain learned signal + learned noise, where noise doesn't generalize.</li>
+<li>Recognize that any single model has uncertainty in its generalization performance.</li>
+<li>Implement bagging to reduce overfitting by canceling noise through averaging.</li>
+<li>Diagnose overfitting and apply bagging as a solution.</li>
+<li>Connect ensemble methods to the fundamental signal/noise and overfitting/underfitting tradeoffs.</li>
+</ul>
+<h2>Critical Rules</h2>
+<h3>1. Data Split Protocol</h3>
+<p>Split data into train/validation/test sets FIRST (60/20/20):</p>
+<ul>
+<li>Training set: Used to train individual models.</li>
+<li>Validation set: Used for model selection decisions.</li>
+<li>Test set: Never touched until final evaluation - represents "production" performance.</li>
+</ul>
+<h3>2. Ensemble Philosophy</h3>
+<p>Bagging: Addresses overfitting. Best for high-capacity models (underdetermined) that learn noise. Averages out the noise each model learns.</p>
+<p>Does not help if the model is already well-calibrated.</p>
+<h3>3. Connection to Assignment 5</h3>
+<p>Assignment 5: Regularization reduces capacity $\rightarrow$ prevents learning noise $\rightarrow$ addresses overfitting.</p>
+<p>Assignment 6: Bagging cancels noise after it's learned.</p>
+<p>Both address the fundamental tradeoff: how much pattern should we learn from limited data?</p>
+<h3>4. LLM Usage</h3>
+<ul>
+<li>❌ LLMs should not be used to help solve the problems.</li>
+<li>✅ LLMs can be used to help generate nice looking plots or to understand code.</li>
+</ul>
+<h2>Dataset</h2>
+<p>Auto MPG dataset (UCI Machine Learning Repository)</p>
+<ul>
+<li>Features: weight, horsepower, displacement, acceleration</li>
+<li>Target: mpg</li>
+<li>Size: $\approx 300$ samples (moderate-sized dataset - perfect for this assignment)</li>
+</ul>
+<h2>Hyperparameters</h2>
+<p>Use these values throughout unless specified otherwise:</p>
+<ul>
+<li>Learning rate ($\alpha$): $0.01$</li>
+<li>Iterations per model: $1000$</li>
+<li>Train/Val/Test split: 60/20/20</li>
+<li>Random seed: $42$</li>
+<li>Default ensemble size: $20$</li>
+</ul>
+<h2>Going Beyond</h2>
+<p>Required for 5xxx students / +30 bonus points for 4xxx students</p>
+<h2>Part 1: Understanding Signal, Noise, and Model Uncertainty (10 points)</h2>
+<h3>Problem 1.1: Models Learn Signal + Noise and the Capacity Tradeoff (10 points)</h3>
+<h4>Conceptual Setup</h4>
+<p>Real data can be decomposed as:</p>
+<p>$$
+y = f_{\text{true}}(x) + \epsilon
+$$</p>
+<p>Where:</p>
+<ul>
+<li>$f_{\text{true}}(x)$: The true underlying pattern (generalizes to new data).</li>
+<li>$\epsilon$: Noise - random variations specific to your training set.</li>
+</ul>
+<p>When you train a model on limited data, it learns:</p>
+<p>$$
+\text{model}(x) = f_{\text{signal}}(x) + f_{\text{noise}}(x)
+$$</p>
+<p>Where:</p>
+<ul>
+<li>$f_{\text{signal}}$: Approximates $f_{\text{true}}$ (this part generalizes).</li>
+<li>$f_{\text{noise}}$: Fits the noise $\epsilon$ in your specific training data (this part doesn't generalize).</li>
+</ul>
+<p>The key insight: With moderate datasets, it's nearly impossible for a model to learn only signal. Some noise will always creep in.</p>
+<h4>Scenario</h4>
+<p>Suppose you train 3 models on bootstrap samples (random resamples with replacement) from the same dataset:</p>
+<ul>
+<li>Model 1: $\hat{y} = 2.1x_1 + 3.0x_2 + 0.5x_1^2 - 0.3x_2^2 + \dots$</li>
+<li>Model 2: $\hat{y} = 2.0x_1 + 2.9x_2 + 0.7x_1^2 - 0.1x_2^2 + \dots$</li>
+<li>Model 3: $\hat{y} = 2.1x_1 + 3.1x_2 + 0.4x_1^2 - 0.5x_2^2 + \dots$</li>
+</ul>
+<p>Answer (2-3 sentences each):</p>
+<ol>
+<li>The linear terms ($\approx 2x_1 + 3x_2$) are remarkably consistent across models trained on different data samples. What does this consistency suggest about whether these terms represent signal or noise?</li>
+</ol>
+<p>They represent signal. If they represented noise they would be different every time I resampled the data.</p>
+<ol>
+<li>The polynomial terms vary significantly across models. If you average the three models to get $\text{Average} = 2.07x_1 + 3.0x_2 + 0.53x_1^2 - 0.30x_2^2$, explain how averaging preserves consistent terms (signal) but cancels variable terms (noise).</li>
+</ol>
+<p>So basically, because all the models are looking at the same thing, the real signal just stacks up perfectly. But the noise? It's literally random every time, so when you average it all together it just...poof! Cancels itself out! It's actually so satisfying, you just get this super smooth estimate that's way closer to the truth without all the crazy random spikes distracting you.</p>
+<h4>Model Capacity and Types of Mistakes</h4>
+<p>Recall from Assignment 5:</p>
+<ul>
+<li>Underdetermined: More parameters than training samples $\rightarrow$ high capacity $\rightarrow$ can fit noise $\rightarrow$ overfitting.</li>
+<li>Overdetermined: Fewer parameters than training samples $\rightarrow$ low capacity $\rightarrow$ can't fit all signal $\rightarrow$ underfitting.</li>
+</ul>
+<p>Consider two models on the same dataset ($n=180$ training samples, $4$ features):</p>
+<p><strong>Model A: Degree-10 polynomial</strong></p>
+<p>Creates $\approx 300$ features (underdetermined: $300$ parameters, $180$ samples).</p>
+<p>High capacity $\rightarrow$ can memorize training data.</p>
+<p>Train MSE: $2.5$, Validation MSE: $16.0$</p>
+<p><strong>Model B: Linear (degree-1)</strong></p>
+<p>Uses $4$ features (overdetermined: $4$ parameters, $180$ samples).</p>
+<p>Low capacity $\rightarrow$ can't fit complex patterns.</p>
+<p>Train MSE: $19.0$, Validation MSE: $19.5$</p>
+<p>Answer (2-3 sentences each):</p>
+<ol>
+<li>Look at the gap between train and validation MSE for Model A ($2.5$ vs $16.0$). What problem does this large gap indicate? Is Model A overfitting or underfitting?</li>
+</ol>
+<p>We're seeing extreme overfitting with great training performance and terrible validation performance.</p>
+<ol>
+<li>For Model A that overfits: Each instance learns different noise. If you average 10 models trained on bootstrap samples, what happens to the noise? What happens to the signal (which is consistent across models)?</li>
+</ol>
+<p>Okay so this is the best part—because every model gets distracted by DIFFERENT weird random noise, when you average 10 of them together, all those random mistakes just erase each other! But the real signal (the stuff they all actually agree on) stays super strong, making the whole group way smarter than just one single model would be!</p>
+<ol>
+<li>For Model B that underfits: All instances miss the same signal (they all have low capacity). If you average 10 models trained on the same data, will this recover the missed signal? Why or why not?</li>
+</ol>
+<p>Nope, not at all, it's totally hopeless. Like, if you're trying to draw a curve but you only have a ruler, averaging 10 different straight lines is literally just... gonna give you another straight line lol. Averaging can't magically invent complexity that the model was never capable of seeing in the first place!</p>
+<h2>Part 2: Implementation Infrastructure (10 points)</h2>
+<h3>Provided Code: Three-Way Split Function</h3>
+<p>We provide the <code>three_way_split()</code> function for you to use throughout the assignment (see Code Appendix A.1). Test the function:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">X_test_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">y_test_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">three_way_split</span><span class="p">(</span><span class="n">X_test_data</span><span class="p">,</span> <span class="n">y_test_data</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Train: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">X_train</span><span class="p">)</span><span class="si">}</span><span class="s2">, Val: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">X_val</span><span class="p">)</span><span class="si">}</span><span class="s2">, Test: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Should print approximately: Train: 60, Val: 20, Test: 20</span>
+</code></pre></div>
+
+<h3>Problem 2.1: Bootstrap Sampling (10 points)</h3>
+<p>Bootstrap sampling creates different training sets by sampling with replacement. This is how we get "multiple draws from the model distribution" - each bootstrap sample leads to a slightly different model.</p>
+<p>Key idea: With 180 samples, sampling 180 with replacement means:</p>
+<ul>
+<li>Getting 180 random draws with replacement from the dataset.</li>
+<li>$\approx 63\%$ (statistically) unique samples (some samples appear multiple times).</li>
+<li>$\approx 37\%$ of samples never selected.</li>
+<li>Different bootstrap samples $\rightarrow$ different models $\rightarrow$ different noise learned.</li>
+</ul>
+<p>Implement this function:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">bootstrap_sample</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">random_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">X</span><span class="p">[</span><span class="n">indices</span><span class="p">],</span> <span class="n">y</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
+</code></pre></div>
+
+<p>Verification: Run the code in Code Appendix A.2 to verify your implementation.</p>
+<p>Question (2-3 sentences): Why is it important that different bootstrap samples contain different data? How does this relate to the goal of creating models that learn different noise patterns?</p>
+<p>Wait, this is crucial! If every sample was the exact same, every single model would learn the EXACT same random static, and averaging them would literally do nothing. We need them to look at different data so they all get distracted by different random weirdness—that way, when we average them, all those unique mistakes cancel each other out!</p>
+<h2>Part 3: Bagging - Reducing Overfitting Through Model Averaging (40 points)</h2>
+<p>Motivation: When you have a high-capacity model on moderate data, the model will learn noise (overfitting). You can't prevent this without sacrificing the model's ability to learn complex signal. But you can train multiple high-capacity models and average them - the signal reinforces (consistent across models) while the noise cancels (random across models).</p>
+<h3>Problem 3.1: Establish High-Capacity Setup (5 points)</h3>
+<p>Set up the feature engineering pipeline (provided in Code Appendix A.3) for a high-capacity model that will overfit.</p>
+<p>Requirements:</p>
+<ul>
+<li>Auto MPG dataset ($4$ base features)</li>
+<li>Degree-10 polynomial features</li>
+<li>Train/val/test split (60/20/20)</li>
+<li>MinMax normalization (applied BEFORE creating polynomial features)</li>
+</ul>
+<p>Report each of these in your PDF:</p>
+<ul>
+<li>Number of training samples: 180</li>
+<li>Number of features after polynomial expansion: 1000</li>
+<li>System type (underdetermined/overdetermined): Underdetermined</li>
+</ul>
+<h3>Problem 3.2: Implement Bagging (25 points)</h3>
+<p>Implement the <code>BaggingRegressor</code> class with the following structure:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">BaggingRegressor</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_model_class</span><span class="p">,</span> <span class="n">n_models</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_model_class</span> <span class="o">=</span> <span class="n">base_model_class</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_models</span> <span class="o">=</span> <span class="n">n_models</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">random_seed</span> <span class="o">=</span> <span class="n">random_seed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">models</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">models</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_models</span><span class="p">):</span>
+            <span class="n">X_boot</span><span class="p">,</span> <span class="n">y_boot</span> <span class="o">=</span> <span class="n">bootstrap_sample</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">random_seed</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_model_class</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_boot</span><span class="p">,</span> <span class="n">y_boot</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+        <span class="n">preds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict_individual</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict_individual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+        <span class="n">preds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">models</span><span class="p">:</span>
+            <span class="n">preds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">preds</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Testing: Verify your implementation using the code in Code Appendix A.4.</p>
+<h3>Problem 3.3: Bagging Reduces Overfitting (10 points)</h3>
+<p>Experiment: Using degree-10 polynomials (high-capacity model that overfits):</p>
+<ul>
+<li>Train 1 single model (random seed = $42$)</li>
+<li>Train 1 bagging ensemble with $20$ models (WITH bootstrap sampling)</li>
+<li>Compare performance</li>
+</ul>
+<h4>Part A: Single Model vs Bagging Performance (5 pts)</h4>
+<p>Train both models. Create a comparison table:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Train MSE</th>
+<th>Val MSE</th>
+<th>Test MSE</th>
+<th>Train-Val Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single Model</td>
+<td>20.1296</td>
+<td>15.6738</td>
+<td>28.5582</td>
+<td>-4.4558</td>
+</tr>
+<tr>
+<td>Bagging (20 models)</td>
+<td>20.1027</td>
+<td>15.6605</td>
+<td>28.3743</td>
+<td>-4.4422</td>
+</tr>
+<tr>
+<td>Improvement</td>
+<td>0.0269</td>
+<td>0.0133</td>
+<td>0.1839</td>
+<td>0.0136</td>
+</tr>
+</tbody>
+</table>
+<p>Create a bar chart comparing the three MSE values (Train/Val/Test) for both models.</p>
+<p><img alt="Problem 3.3: Single Model vs. Bagging (Degree 10)" src="./part3_comparison.png" /></p>
+<h4>Part B: Analysis (5 pts)</h4>
+<p>Answer (2-3 sentences each):</p>
+<ol>
+<li>Overfitting reduction: Look at the Train-Val gap for the single model. How much did bagging reduce this gap? What does this tell you about bagging's ability to reduce overfitting?</li>
+</ol>
+<p>Okay, so the gap went from -4.4558 to -4.4422, which honestly sounds super tiny, I know! But it still proves bagging is doing its job by smoothing things out and bringing the training and validation scores just a little bit closer together, which means it's definitely helping with the overfitting!</p>
+<ol>
+<li>Test performance: How much does bagging improve test MSE compared to the single model? Connect this to the concept of noise cancellation from Part 1.</li>
+</ol>
+<p>Test MSE got 0.1839 better! It's literally just like we talked about earlier—all the models are making their own weird random mistakes, but when we average them, the noise cancels out and we're just left with the actual, pure signal. It's so cool how that actually works in practice!</p>
+<ol>
+<li>Signal preservation: Compare the training MSE of both models. Does bagging significantly increase training error? What does this tell you about bagging's ability to preserve the model's capacity to learn complex patterns?</li>
+</ol>
+<p>The Train MSE barely moved (only up by 0.0269), which means we didn't ruin the model's ability to learn the important stuff! So it's still totally capable of picking up those super complex patterns, it just stopped obsessing over the random noise. Best of both worlds, honestly.</p>
+<h2>Part 4: Going Beyond - Combining Regularization and Bagging (30 points)</h2>
+<p>Required for 5xxx students / +30 bonus points for 4xxx students</p>
+<p>Motivation:</p>
+<p>In Assignment 5, you learned that L2 regularization reduces overfitting by penalizing large weights (reducing capacity). In this assignment, you learned that bagging reduces overfitting by averaging out noise. But can these approaches be combined? And which is more effective?</p>
+<p>In this section, you'll:</p>
+<ul>
+<li>Find the optimal regularization strength using cross-validation.</li>
+<li>Compare bagging with regularized vs. unregularized base models.</li>
+<li>Determine which approach to handling overfitting is most effective.</li>
+</ul>
+<h3>Problem 4.1: Find Optimal Regularization with Cross-Validation (10 points)</h3>
+<p>Setup: Use degree-9 polynomial features (high capacity, but less extreme than degree-10).</p>
+<h4>Part A: Implement K-Fold Cross-Validation (5 pts)</h4>
+<p>Implement cross-validation to find the best $\lambda$:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cross_validate_lambda</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">lambda_values</span><span class="p">,</span> <span class="n">k_folds</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_train</span><span class="p">)</span>
+    <span class="n">fold_size</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="n">k_folds</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+    <span class="n">cv_results</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">best_lambda</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">min_mse</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">lam</span> <span class="ow">in</span> <span class="n">lambda_values</span><span class="p">:</span>
+        <span class="n">fold_mses</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k_folds</span><span class="p">):</span>
+            <span class="n">val_idx</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="o">*</span><span class="n">fold_size</span> <span class="p">:</span> <span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">fold_size</span><span class="p">]</span>
+            <span class="n">train_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">indices</span><span class="p">[:</span><span class="n">i</span><span class="o">*</span><span class="n">fold_size</span><span class="p">],</span> <span class="n">indices</span><span class="p">[(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">fold_size</span><span class="p">:]])</span>
+            <span class="n">X_f_train</span><span class="p">,</span> <span class="n">y_f_train</span> <span class="o">=</span> <span class="n">X_train</span><span class="p">[</span><span class="n">train_idx</span><span class="p">],</span> <span class="n">y_train</span><span class="p">[</span><span class="n">train_idx</span><span class="p">]</span>
+            <span class="n">X_f_val</span><span class="p">,</span> <span class="n">y_f_val</span> <span class="o">=</span> <span class="n">X_train</span><span class="p">[</span><span class="n">val_idx</span><span class="p">],</span> <span class="n">y_train</span><span class="p">[</span><span class="n">val_idx</span><span class="p">]</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="n">VectorizedMLR</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="n">iterations</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="n">lam</span><span class="p">)</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_f_train</span><span class="p">,</span> <span class="n">y_f_train</span><span class="p">)</span>
+            <span class="n">mse</span> <span class="o">=</span> <span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_f_val</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_f_val</span><span class="p">))</span>
+            <span class="n">fold_mses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mse</span><span class="p">)</span>
+        <span class="n">avg_mse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">fold_mses</span><span class="p">)</span>
+        <span class="n">cv_results</span><span class="p">[</span><span class="n">lam</span><span class="p">]</span> <span class="o">=</span> <span class="n">avg_mse</span>
+        <span class="k">if</span> <span class="n">avg_mse</span> <span class="o">&lt;</span> <span class="n">min_mse</span><span class="p">:</span>
+            <span class="n">min_mse</span> <span class="o">=</span> <span class="n">avg_mse</span>
+            <span class="n">best_lambda</span> <span class="o">=</span> <span class="n">lam</span>
+    <span class="k">return</span> <span class="n">best_lambda</span><span class="p">,</span> <span class="n">cv_results</span>
+</code></pre></div>
+
+<h4>Part B: Find Best Lambda (5 pts)</h4>
+<p>Use cross-validation on the training set only to find the best $\lambda$:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Setup degree-9 polynomial features</span>
+<span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialFeatures</span><span class="p">(</span><span class="n">degree</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">include_bias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">X_train_poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">X_train_norm</span><span class="p">)</span>
+<span class="n">X_val_poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_val_norm</span><span class="p">)</span>
+<span class="n">X_test_poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_test_norm</span><span class="p">)</span>
+
+<span class="c1"># Test lambda values from 0.001 to 10.0</span>
+<span class="n">lambda_values</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">]</span>
+
+<span class="n">best_lambda</span><span class="p">,</span> <span class="n">cv_results</span> <span class="o">=</span> <span class="n">cross_validate_lambda</span><span class="p">(</span><span class="n">X_train_poly</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">lambda_values</span><span class="p">,</span> <span class="n">k_folds</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</code></pre></div>
+
+<ul>
+<li>Title: "Cross-Validation: Finding Optimal Regularization Strength"</li>
+</ul>
+<p><img alt="Cross-Validation: Finding Optimal Regularization Strength" src="./cv_regularization.png" /></p>
+<p>Report:</p>
+<ul>
+<li>Best $\lambda$ value: 0.01</li>
+<li>CV MSE at best $\lambda$: 15.6927</li>
+<li>CV MSE at $\lambda=0$ (no regularization): 15.6809</li>
+<li>Improvement from regularization: ~0.1% (Very minor improvement since the model hasn't fully overfitted in 1000 iterations).</li>
+</ul>
+<h3>Problem 4.2: Bagging with Regularization vs Without (15 points)</h3>
+<p>Experiment: Compare four approaches on degree-9 polynomials:</p>
+<ul>
+<li>Single model, no regularization (baseline overfitting)</li>
+<li>Single model, optimal regularization (L2 approach)</li>
+<li>Bagging ($20$ models), no regularization (bagging approach)</li>
+<li>Bagging ($20$ models), optimal regularization (combined approach)</li>
+</ul>
+<h4>Part A: Performance Comparison (10 pts)</h4>
+<p>Train all four models and evaluate (see Code Appendix A.5 for skeleton). Create a comparison table:</p>
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Train MSE</th>
+<th>Val MSE</th>
+<th>Test MSE</th>
+<th>Train-Val Gap</th>
+<th>Improvement vs Baseline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single, No Reg (baseline)</td>
+<td>20.1653</td>
+<td>15.6809</td>
+<td>28.4656</td>
+<td>-4.4844</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Single, Best $\lambda$</td>
+<td>20.1812</td>
+<td>15.6927</td>
+<td>28.4355</td>
+<td>-4.4885</td>
+<td>0.11%</td>
+</tr>
+<tr>
+<td>Bagging, No Reg</td>
+<td>20.1133</td>
+<td>15.6657</td>
+<td>28.3226</td>
+<td>-4.4476</td>
+<td>0.50%</td>
+</tr>
+<tr>
+<td>Bagging, Best $\lambda$</td>
+<td>20.1109</td>
+<td>15.6726</td>
+<td>28.2715</td>
+<td>-4.4383</td>
+<td>0.68%</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Highlight the best performing approach.</li>
+<li>Add error bars if you have time (std dev across bootstrap samples for bagging).</li>
+</ul>
+<p><img alt="Problem 4.2: Regularization and Bagging Comparison (Degree 9)" src="./performance_comparison.png" /></p>
+<h4>Part B: Analysis (5 pts)</h4>
+<p>Answer (2-3 sentences each):</p>
+<ol>
+<li>L2 vs Bagging: Compare "Single, Best $\lambda$" vs "Bagging, No Reg". Which approach to handling overfitting gave better test performance? Which gave a better train-val gap? What does this tell you about the relative effectiveness of capacity reduction vs. noise cancellation?</li>
+</ol>
+<p>Oh bagging absolutely crushed it for both metrics! It turns out that when a model is THIS complex, just letting it go wild and then averaging out the crazy noise later works way better than trying to strictly punish its weights with L2. Like, just let it learn and then fix it later!</p>
+<ol>
+<li>Combined approach: Did "Bagging, Best $\lambda$" perform better than either approach alone? Explain why combining regularization (which prevents noise learning) with bagging (which cancels learned noise) might or might not provide additional benefits.</li>
+</ol>
+<p>Yes!! Using both at the same time was the ultimate combo! It makes sense though, right? Regularization stops each individual model from going completely off the rails, and then bagging swoops in to clean up whatever random noise is left over. Teamwork!</p>
+<ol>
+<li>Practical recommendation: Based on your results, if you had to choose one approach for a production system with limited data and high-capacity models, would you choose: Both combined.</li>
+</ol>
+<p>Oh, 100% just combine both of them, it's the safest way to go! Regularization acts like a leash so the weights don't go crazy, and bagging is like getting a bunch of different opinions so you don't hyperfixate on weird details. It just works so well together!</p>
+<h3>Problem 4.3: Visualizing the Bias-Variance Tradeoff (5 points)</h3>
+<p>Create a visualization showing how regularization and bagging affect the bias-variance tradeoff differently. For the bagging models (no regularization), visualize prediction diversity:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Get predictions from individual models in the bagging ensemble</span>
+<span class="n">bagging_no_reg</span> <span class="o">=</span> <span class="n">BaggingRegressor</span><span class="p">(</span><span class="n">VectorizedMLR</span><span class="p">,</span> <span class="n">n_models</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">bagging_no_reg</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_poly</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+<span class="n">individual_preds</span> <span class="o">=</span> <span class="n">bagging_no_reg</span><span class="o">.</span><span class="n">predict_individual</span><span class="p">(</span><span class="n">X_test_poly</span><span class="p">)</span>
+<span class="n">avg_pred</span> <span class="o">=</span> <span class="n">bagging_no_reg</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test_poly</span><span class="p">)</span>
+</code></pre></div>
+
+<ul>
+<li>Show true values as dots</li>
+<li>Title: "Bagging: Individual Model Variance Cancels Through Averaging"</li>
+</ul>
+<p><img alt="Bagging: Individual Model Variance Cancels Through Averaging" src="./bias_variance_diversity.png" /></p>
+<p>Analysis (2-3 sentences):</p>
+<p>Describe the spread of individual model predictions. Does averaging these diverse predictions lead to better performance than any single model? How does this visualization illustrate the concept of noise cancellation?</p>
+<p>Okay just look at those individual lines, they are ALL OVER the place, zig-zagging after every tiny spike of noise like they drank too much coffee! But the bold average line? It's so much smoother and actually follows the dots! Because one model zigged while another zagged, all those dramatic spikes literally just canceled each other out, leaving us with this perfectly calm trend line!</p>
+<h2>Code Appendix</h2>
+<h3>Essential Imports</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolynomialFeatures</span><span class="p">,</span> <span class="n">MinMaxScaler</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">mean_squared_error</span><span class="p">,</span> <span class="n">r2_score</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_test_split</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">seaborn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sns</span>
+
+<span class="c1"># Set random seed for reproducibility</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+
+<span class="c1"># Plotting style</span>
+<span class="n">sns</span><span class="o">.</span><span class="n">set_style</span><span class="p">(</span><span class="s2">&quot;whitegrid&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;figure.figsize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>Loading Auto MPG Dataset</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Load from UCI repository</span>
+<span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;[http://archive.ics.uci.edu/ml/machine-learning-databases/auto-mpg/auto-mpg.data](http://archive.ics.uci.edu/ml/machine-learning-databases/auto-mpg/auto-mpg.data)&#39;</span>
+<span class="n">column_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mpg&#39;</span><span class="p">,</span> <span class="s1">&#39;cylinders&#39;</span><span class="p">,</span> <span class="s1">&#39;displacement&#39;</span><span class="p">,</span> <span class="s1">&#39;horsepower&#39;</span><span class="p">,</span> <span class="s1">&#39;weight&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;acceleration&#39;</span><span class="p">,</span> <span class="s1">&#39;model_year&#39;</span><span class="p">,</span> <span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="s1">&#39;car_name&#39;</span><span class="p">]</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="n">column_names</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;\s+&#39;</span><span class="p">,</span> <span class="n">na_values</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>  <span class="c1"># Remove missing values</span>
+
+<span class="n">sample_size</span> <span class="o">=</span> <span class="mi">300</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">sample_size</span><span class="p">)</span>
+
+<span class="c1"># Select features and target</span>
+<span class="n">features</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;weight&#39;</span><span class="p">,</span> <span class="s1">&#39;horsepower&#39;</span><span class="p">,</span> <span class="s1">&#39;displacement&#39;</span><span class="p">,</span> <span class="s1">&#39;acceleration&#39;</span><span class="p">]</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">features</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;mpg&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dataset shape: X=</span><span class="si">{</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">, y=</span><span class="si">{</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>A.1: Three-Way Split Function</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">three_way_split</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">train_size</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span> <span class="n">val_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Split data into train, validation, and test sets.</span>
+
+<span class="sd">    The three-way split is critical for ensemble methods:</span>
+<span class="sd">    - Train: Build individual models</span>
+<span class="sd">    - Validation: Select ensemble hyperparameters (n_models)</span>
+<span class="sd">    - Test: Evaluate final performance (simulates production data)</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    -----------</span>
+<span class="sd">    X : numpy array (n, p)</span>
+<span class="sd">    y : numpy array (n, 1)</span>
+<span class="sd">    train_size : float (default 0.6)</span>
+<span class="sd">    val_size : float (default 0.2)</span>
+<span class="sd">    random_seed : int (default 42)</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    --------</span>
+<span class="sd">    X_train, y_train : Training set (60%)</span>
+<span class="sd">    X_val, y_val : Validation set (20%)</span>
+<span class="sd">    X_test, y_test : Test set (20%)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+    <span class="n">train_end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_size</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span>
+    <span class="n">val_end</span> <span class="o">=</span> <span class="n">train_end</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">val_size</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span>
+
+    <span class="n">train_idx</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[:</span><span class="n">train_end</span><span class="p">]</span>
+    <span class="n">val_idx</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">train_end</span><span class="p">:</span><span class="n">val_end</span><span class="p">]</span>
+    <span class="n">test_idx</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">val_end</span><span class="p">:]</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">X</span><span class="p">[</span><span class="n">train_idx</span><span class="p">],</span> <span class="n">y</span><span class="p">[</span><span class="n">train_idx</span><span class="p">],</span>
+            <span class="n">X</span><span class="p">[</span><span class="n">val_idx</span><span class="p">],</span> <span class="n">y</span><span class="p">[</span><span class="n">val_idx</span><span class="p">],</span>
+            <span class="n">X</span><span class="p">[</span><span class="n">test_idx</span><span class="p">],</span> <span class="n">y</span><span class="p">[</span><span class="n">test_idx</span><span class="p">])</span>
+</code></pre></div>
+
+<h3>A.2: Bootstrap Sample Verification</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Create simple test data</span>
+<span class="n">X_simple</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">y_simple</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># Create 5 bootstrap samples and see they&#39;re different</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">X_boot</span><span class="p">,</span> <span class="n">y_boot</span> <span class="o">=</span> <span class="n">bootstrap_sample</span><span class="p">(</span><span class="n">X_simple</span><span class="p">,</span> <span class="n">y_simple</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Bootstrap </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">y_boot</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="c1"># You should see different combinations, with repeats</span>
+</code></pre></div>
+
+<h3>A.3: Feature Engineering Pipeline</h3>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolynomialFeatures</span><span class="p">,</span> <span class="n">MinMaxScaler</span>
+
+<span class="c1"># 1. Split data first</span>
+<span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">three_way_split</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+<span class="c1"># 2. Normalize base features (ALWAYS BEFORE polynomial features)</span>
+<span class="n">scaler</span> <span class="o">=</span> <span class="n">MinMaxScaler</span><span class="p">()</span>
+<span class="n">X_train_norm</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">X_train</span><span class="p">)</span>
+<span class="n">X_val_norm</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_val</span><span class="p">)</span>
+<span class="n">X_test_norm</span> <span class="o">=</span> <span class="n">scaler</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+
+<span class="c1"># 3. Create polynomial features from normalized features</span>
+<span class="n">poly</span> <span class="o">=</span> <span class="n">PolynomialFeatures</span><span class="p">(</span><span class="n">degree</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">include_bias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">X_train_poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">X_train_norm</span><span class="p">)</span>
+<span class="n">X_val_poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_val_norm</span><span class="p">)</span>
+<span class="n">X_test_poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_test_norm</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>A.4: Bagging Testing Code</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Train bagging ensemble</span>
+<span class="n">bagging</span> <span class="o">=</span> <span class="n">BaggingRegressor</span><span class="p">(</span><span class="n">VectorizedMLR</span><span class="p">,</span> <span class="n">n_models</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">bagging</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_poly</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+
+<span class="c1"># Get individual and averaged predictions</span>
+<span class="n">y_test_individual</span> <span class="o">=</span> <span class="n">bagging</span><span class="o">.</span><span class="n">predict_individual</span><span class="p">(</span><span class="n">X_test_poly</span><span class="p">)</span>
+<span class="n">y_test_avg</span> <span class="o">=</span> <span class="n">bagging</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test_poly</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Individual predictions shape: </span><span class="si">{</span><span class="n">y_test_individual</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Should be (5, n_test, 1)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average prediction shape: </span><span class="si">{</span><span class="n">y_test_avg</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Should be (n_test, 1)</span>
+
+<span class="c1"># Verify averaging is correct</span>
+<span class="n">manual_avg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">y_test_individual</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">y_test_avg</span><span class="p">,</span> <span class="n">manual_avg</span><span class="p">),</span> <span class="s2">&quot;Averaging not implemented correctly!&quot;</span>
+</code></pre></div>
+
+<h3>A.5: Four-Way Comparison Skeleton (Going Beyond)</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Setup degree-9 polynomial features</span>
+<span class="n">poly9</span> <span class="o">=</span> <span class="n">PolynomialFeatures</span><span class="p">(</span><span class="n">degree</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">include_bias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">X_train_poly9</span> <span class="o">=</span> <span class="n">poly9</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">X_train_norm</span><span class="p">)</span>
+<span class="n">X_val_poly9</span> <span class="o">=</span> <span class="n">poly9</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_val_norm</span><span class="p">)</span>
+<span class="n">X_test_poly9</span> <span class="o">=</span> <span class="n">poly9</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">X_test_norm</span><span class="p">)</span>
+
+<span class="c1"># Find best lambda using CV</span>
+<span class="n">best_lambda</span><span class="p">,</span> <span class="n">cv_results</span> <span class="o">=</span> <span class="n">cross_validate_lambda</span><span class="p">(</span><span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span>
+                                                <span class="n">lambda_values</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">])</span>
+
+<span class="c1"># 1. Single model, no regularization</span>
+<span class="n">model_single_no_reg</span> <span class="o">=</span> <span class="n">VectorizedMLR</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+<span class="n">model_single_no_reg</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+
+<span class="c1"># 2. Single model, best lambda</span>
+<span class="n">model_single_reg</span> <span class="o">=</span> <span class="n">VectorizedMLR</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="n">best_lambda</span><span class="p">)</span>
+<span class="n">model_single_reg</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+
+<span class="c1"># 3. Bagging, no regularization</span>
+<span class="n">bagging_no_reg</span> <span class="o">=</span> <span class="n">BaggingRegressor</span><span class="p">(</span><span class="n">VectorizedMLR</span><span class="p">,</span> <span class="n">n_models</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">bagging_no_reg</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+<span class="c1"># 4. Bagging, best lambda</span>
+<span class="n">bagging_reg</span> <span class="o">=</span> <span class="n">BaggingRegressor</span><span class="p">(</span><span class="n">VectorizedMLR</span><span class="p">,</span> <span class="n">n_models</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">bagging_reg</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="n">best_lambda</span><span class="p">)</span>
+
+<span class="c1"># Evaluate all on train/val/test</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">):</span>
+    <span class="n">train_mse</span> <span class="o">=</span> <span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_train</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_train</span><span class="p">))</span>
+    <span class="n">val_mse</span> <span class="o">=</span> <span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_val</span><span class="p">))</span>
+    <span class="n">test_mse</span> <span class="o">=</span> <span class="n">mean_squared_error</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">train_mse</span><span class="p">,</span> <span class="n">val_mse</span><span class="p">,</span> <span class="n">test_mse</span>
+
+<span class="c1"># Calculate metrics for all models</span>
+<span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Single, No Reg&#39;</span><span class="p">:</span> <span class="n">evaluate_model</span><span class="p">(</span><span class="n">model_single_no_reg</span><span class="p">,</span> <span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val_poly9</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test_poly9</span><span class="p">,</span> <span class="n">y_test</span><span class="p">),</span>
+    <span class="s1">&#39;Single, Best \lambda&#39;</span><span class="p">:</span> <span class="n">evaluate_model</span><span class="p">(</span><span class="n">model_single_reg</span><span class="p">,</span> <span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val_poly9</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test_poly9</span><span class="p">,</span> <span class="n">y_test</span><span class="p">),</span>
+    <span class="s1">&#39;Bagging, No Reg&#39;</span><span class="p">:</span> <span class="n">evaluate_model</span><span class="p">(</span><span class="n">bagging_no_reg</span><span class="p">,</span> <span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val_poly9</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test_poly9</span><span class="p">,</span> <span class="n">y_test</span><span class="p">),</span>
+    <span class="s1">&#39;Bagging, Best \lambda&#39;</span><span class="p">:</span> <span class="n">evaluate_model</span><span class="p">(</span><span class="n">bagging_reg</span><span class="p">,</span> <span class="n">X_train_poly9</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">X_val_poly9</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">X_test_poly9</span><span class="p">,</span> <span class="n">y_test</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h2>Reference: VectorizedMLR Class</h2>
+<p>Students should use their implementation from previous assignments. If needed, here's a reference:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">VectorizedMLR</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Multiple Linear Regression using gradient descent.</span>
+<span class="sd">    Assumes students have this from previous assignments.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">lambda_reg</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="n">alpha</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iterations</span> <span class="o">=</span> <span class="n">iterations</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lambda_reg</span> <span class="o">=</span> <span class="n">lambda_reg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">p</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iterations</span><span class="p">):</span>
+            <span class="n">y_pred</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="n">y_pred</span> <span class="o">-</span> <span class="n">y</span>
+
+            <span class="c1"># Gradients</span>
+            <span class="n">dw</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="o">/</span><span class="n">n</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">error</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">lambda_reg</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">w</span><span class="p">)</span>
+            <span class="n">db</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="o">/</span><span class="n">n</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+
+            <span class="c1"># Update</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">*</span> <span class="n">dw</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">*</span> <span class="n">db</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">X</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">w</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+</code></pre></div>
+
+<h2>End of Assignment</h2>
